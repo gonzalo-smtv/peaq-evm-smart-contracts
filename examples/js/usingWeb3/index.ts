@@ -13,8 +13,7 @@ const rpcURL = "https://erpc-async.agung.peaq.network";
 const chainID = 9990;
 
 // Contract details
-const MachineStationFactoryContractAddress: string =
-  "0x11f40Af48D731d0f473A382DcceDd64B1f2f15a3";
+const MachineStationFactoryContractAddress: string = "";
 const contract = new ethers.ContractFactory(
   abi as AbiItem[],
   MachineStationFactoryContractAddress
