@@ -2,7 +2,7 @@
 pragma solidity 0.8.25;
 
 import {Script, console} from "forge-std/Script.sol";
-import {MachineStationFactory} from "../src/machine-station/MachineStationFactory.sol";
+import {MachineStationFactory} from "../src/machine-station/agung/MachineStationFactory.sol";
 
 contract DeployGasStation is Script {
     function run() external returns (MachineStationFactory) {

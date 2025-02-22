@@ -8,10 +8,11 @@ library Errors {
     error InvalidMachineOwnerSignature(bytes32 messageHash, uint256 nonce);
     error TransferFailed(address token, address recipient, uint256 amount);
     error NotAuthorized(address caller);
-    error TargetCallFailed(address target);
-    error TargetCallFailedV2(address target, bytes data);
+    error TargetCallFailed(address target, bytes data);
     error InvalidMachineAddressTargetsDataLength();
     error InvalidMachineAddressNonceSignatureLength();
     error EmptyAddressesArray();
     error MaxBatchTransactionExceeded(uint256 max, uint256 got);
+    error InsufficientFactoryBalance(uint256 balance, uint256 amount);
+    error FundingMachineBalanceFailed(address machine, uint256 amount);
 }
