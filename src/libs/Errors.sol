@@ -9,6 +9,7 @@ library Errors {
     error TransferFailed(address token, address recipient, uint256 amount);
     error NotAuthorized(address caller);
     error TargetCallFailed(address target);
+    error TargetCallFailedV2(address target, bytes data);
     error InvalidMachineAddressTargetsDataLength();
     error InvalidMachineAddressNonceSignatureLength();
     error EmptyAddressesArray();

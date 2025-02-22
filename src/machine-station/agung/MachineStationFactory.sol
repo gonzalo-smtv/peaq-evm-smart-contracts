@@ -310,7 +310,7 @@ contract MachineStationFactory is EIP712, AccessControl, ReentrancyGuard {
             // This is added because each machine account is required to pay a storage deposit fees by the peaq storage, rbac and did contracts
             // while using the on-chain storage
             if (machineBalance <= Constants.AGUNG_MIN_BALANCE) {
-                // Fund the machine adress balance
+                // Fund the machine address balance
                 IERC20(Constants.FUNDING_TOKEN).safeTransfer(machineAddress, Constants.AGUNG_FUNDING_AMOUNT);
             }
         }
