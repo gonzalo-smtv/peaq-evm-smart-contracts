@@ -15,4 +15,4 @@ docs/
 .env
 
 # Ignore built files
-/dist
+getRealCampaignExamples/**.js

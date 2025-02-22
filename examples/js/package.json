@@ -33,7 +33,7 @@
     "npm": ">= 11.0.0"
   },
   "scripts": {
-    "build": "tsc ./getRealCampaignExamples/**.ts --outDir ./dist"
+    "build": "tsc ./getRealCampaignExamples/**.ts"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.1.0",
