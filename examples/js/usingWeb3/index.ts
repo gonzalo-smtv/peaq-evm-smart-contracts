@@ -14,7 +14,7 @@ const chainID = 9990;
 
 // Contract details
 const MachineStationFactoryContractAddress: string =
-  "0x11f40Af48D731d0f473A382DcceDd64B1f2f15a3"; // Replace with the your dedicated machine station factory contract address
+  "0x11f40Af48D731d0f473A382DcceDd64B1f2f15a3";
 const contract = new ethers.ContractFactory(
   abi as AbiItem[],
   MachineStationFactoryContractAddress
@@ -47,33 +47,6 @@ class MachineStationFactoryExample {
       machineOwner,
       nonce,
       deploySignature
-    );
-  }
-
-  async submitMachineTransferBalanceTx() {
-    let machineAddress = globalMachineAddress;
-    const recipientAddress = machineOwnerAccount.address;
-    const nonce = this.getRandomNonce();
-
-    const machineOwnerSignature =
-      await this.machineOwnerSignTypedDataTransferMachineBalance(
-        machineAddress,
-        recipientAddress,
-        nonce
-      );
-    const ownerSignature = await this.ownerSignTypedDataTransferMachineBalance(
-      machineAddress,
-      recipientAddress,
-      nonce
-    );
-
-    console.log("nonce:", nonce);
-    await this.executeMachineTransferBalance(
-      machineAddress,
-      recipientAddress,
-      nonce,
-      ownerSignature,
-      machineOwnerSignature
     );
   }
 
@@ -112,6 +85,32 @@ class MachineStationFactoryExample {
     } catch (error) {
       console.error("Error:", error);
     }
+  }
+
+  async submitMachineTransferBalanceTx() {
+    let machineAddress = globalMachineAddress;
+    const recipientAddress = machineOwnerAccount.address;
+    const nonce = this.getRandomNonce();
+
+    const machineOwnerSignature =
+      await this.machineOwnerSignTypedDataTransferMachineBalance(
+        machineAddress,
+        recipientAddress,
+        nonce
+      );
+    const ownerSignature = await this.ownerSignTypedDataTransferMachineBalance(
+      machineAddress,
+      recipientAddress,
+      nonce
+    );
+
+    await this.executeMachineTransferBalance(
+      machineAddress,
+      recipientAddress,
+      nonce,
+      ownerSignature,
+      machineOwnerSignature
+    );
   }
 
   async submitMachineStorageTx() {
@@ -305,79 +304,6 @@ class MachineStationFactoryExample {
     } catch (error) {
       console.error("Error:", error);
     }
-  }
-
-  async deployMachineSmartAccount(
-    machineOwner: string,
-    nonce: BigInt,
-    signature: string
-  ): Promise<string> {
-    try {
-      // Encode the method call data
-      const methodData = contract.interface.encodeFunctionData(
-        "deployMachineSmartAccount",
-        [machineOwner, nonce, signature]
-      );
-
-      // Send the transaction and get the receipt
-      const txResponse = await this.sendTransaction(methodData);
-
-      let receipt = await txResponse.wait().finally();
-
-      const logs = receipt?.logs;
-
-      // Compute the event signature
-      const eventSignature = ethers.id("MachineSmartAccountDeployed(address)");
-      console.log("eventSignature: ", eventSignature);
-
-      // Find the relevant log
-      const log = logs?.find((log) => log.topics[0] === eventSignature);
-
-      console.log("raw log: ", log);
-
-      if (!log) {
-        throw new Error("MachineSmartAccountDeployed event not found in logs");
-      }
-
-      // The deployed address is stored as the second topic (topics[1]) in a 32-byte format
-      const rawDeployedAddress = log.topics[1];
-      const deployedAddress = ethers.getAddress(
-        `0x${rawDeployedAddress.slice(26)}`
-      ); // Extract last 20 bytes
-
-      console.log("Machine Deploy Tx executed:", receipt?.hash);
-      console.log("Machine Deployed Address:", deployedAddress);
-      return deployedAddress;
-    } catch (error: any) {
-      console.error("Transaction failed. Error:", error);
-
-      // Check if the error is a revert error with data
-      if (error.data) {
-        try {
-          // Decode the revert error using the contract's ABI
-          const iface = new ethers.Interface(contract.interface.fragments);
-          const decodedError = iface.parseError(error.data);
-
-          console.log("Decoded Error:", decodedError);
-
-          // Extract error name and arguments
-          // const { name, args } = decodedError;
-          // console.log("Error Name:", name);
-          // console.log("Arguments:", args);
-
-          // if (name === "InvalidSignature") {
-          //   console.error("InvalidSignature Error Details:");
-          //   console.error("structHash:", args.structHash);
-          //   console.error("nonce:", args.nonce.toString());
-          // }
-        } catch (decodeError) {
-          console.error("Failed to decode error data:", decodeError);
-        }
-      } else {
-        console.error("Transaction failed without revert data:", error);
-      }
-    }
-    return "";
   }
 
   async executeMachineTransferBalance(
@@ -599,42 +525,6 @@ class MachineStationFactoryExample {
         console.error("Transaction failed without revert data:", error);
       }
     }
-  }
-
-  async ownerSignTypedDataDeployMachineSmartAccount(
-    machineOwner: string,
-    nonce: BigInt
-  ): Promise<string> {
-    // Define the EIP-712 Domain
-    const domain = {
-      name: "MachineStationFactory",
-      version: "1",
-      chainId: chainID,
-      verifyingContract: MachineStationFactoryContractAddress,
-    };
-
-    console.log("machineOwner: ", machineOwner);
-
-    // Define the type definition for the data
-    const types = {
-      DeployMachineSmartAccount: [
-        { name: "machineOwner", type: "address" },
-        { name: "nonce", type: "uint256" },
-      ],
-    };
-
-    // Define the data to be signed
-    const message = {
-      machineOwner: machineOwner,
-      nonce: nonce,
-    };
-
-    console.log("ownerAccount: ", ownerAccount.address);
-
-    // Sign the typed data
-    const signature = await ownerAccount.signTypedData(domain, types, message);
-
-    return signature;
   }
 
   async ownerSignTypedDataTransferMachineBalance(
@@ -886,12 +776,6 @@ class MachineStationFactoryExample {
     return await ownerAccount.sendTransaction(tx);
   }
 
-  getRandomNonce(): BigInt {
-    const now = BigInt(Date.now());
-    const randomPart = BigInt(Math.floor(Math.random() * 1e18));
-    return now * randomPart;
-  }
-
   async generateDIDHash(randomAddress: string): Promise<string> {
     const customFields = {
       prefix: "peaq",
@@ -941,6 +825,121 @@ class MachineStationFactoryExample {
       mnemonic,
       address: pair.address,
     };
+  }
+
+  getRandomNonce(): BigInt {
+    const now = BigInt(Date.now());
+    const randomPart = BigInt(Math.floor(Math.random() * 1e18));
+    return now * randomPart;
+  }
+
+  async ownerSignTypedDataDeployMachineSmartAccount(
+    machineOwner: string,
+    nonce: BigInt
+  ): Promise<string> {
+    // Define the EIP-712 Domain
+    const domain = {
+      name: "MachineStationFactory",
+      version: "1",
+      chainId: chainID,
+      verifyingContract: MachineStationFactoryContractAddress,
+    };
+
+    console.log("machineOwner: ", machineOwner);
+
+    // Define the type definition for the data
+    const types = {
+      DeployMachineSmartAccount: [
+        { name: "machineOwner", type: "address" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    // Define the data to be signed
+    const message = {
+      machineOwner: machineOwner,
+      nonce: nonce,
+    };
+
+    console.log("ownerAccount: ", ownerAccount.address);
+
+    // Sign the typed data
+    const signature = await ownerAccount.signTypedData(domain, types, message);
+
+    return signature;
+  }
+
+  async deployMachineSmartAccount(
+    machineOwner: string,
+    nonce: BigInt,
+    signature: string
+  ): Promise<string> {
+    try {
+      // Encode the method call data
+      const methodData = contract.interface.encodeFunctionData(
+        "deployMachineSmartAccount",
+        [machineOwner, nonce, signature]
+      );
+
+      // Send the transaction and get the receipt
+      const txResponse = await this.sendTransaction(methodData);
+
+      let receipt = await txResponse.wait().finally();
+
+      const logs = receipt?.logs;
+
+      // Compute the event signature
+      const eventSignature = ethers.id("MachineSmartAccountDeployed(address)");
+      console.log("eventSignature: ", eventSignature);
+
+      // Find the relevant log
+      const log = logs?.find((log) => log.topics[0] === eventSignature);
+
+      console.log("raw log: ", log);
+
+      if (!log) {
+        throw new Error("MachineSmartAccountDeployed event not found in logs");
+      }
+
+      // The deployed address is stored as the second topic (topics[1]) in a 32-byte format
+      const rawDeployedAddress = log.topics[1];
+      const deployedAddress = ethers.getAddress(
+        `0x${rawDeployedAddress.slice(26)}`
+      ); // Extract last 20 bytes
+
+      console.log("Machine Deploy Tx executed:", receipt?.hash);
+      console.log("Machine Deployed Address:", deployedAddress);
+      return deployedAddress;
+    } catch (error: any) {
+      console.error("Transaction failed. Error:", error);
+
+      // Check if the error is a revert error with data
+      if (error.data) {
+        try {
+          // Decode the revert error using the contract's ABI
+          const iface = new ethers.Interface(contract.interface.fragments);
+          const decodedError = iface.parseError(error.data);
+
+          console.log("Decoded Error:", decodedError);
+
+          // Extract error name and arguments
+          // const { name, args } = decodedError;
+          // console.log("Error Name:", name);
+          // console.log("Arguments:", args);
+
+          // if (name === "InvalidSignature") {
+          //   console.error("InvalidSignature Error Details:");
+          //   console.error("structHash:", args.structHash);
+          //   console.error("nonce:", args.nonce.toString());
+          // }
+        } catch (decodeError) {
+          console.error("Failed to decode error data:", decodeError);
+        }
+      } else {
+        console.error("Transaction failed without revert data:", error);
+      }
+    }
+    return "";
   }
 }
 
