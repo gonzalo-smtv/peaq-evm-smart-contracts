@@ -560,7 +560,7 @@ const createDid = async () => {
   const campaignClass = new PeaqGetRealCampaignClass();
 
   try {
-    await campaignClass.submitDIDTx();
+    await campaignClass.transferBalance();
   } catch (error) {
     console.error("DID Creation Error:", error);
   }

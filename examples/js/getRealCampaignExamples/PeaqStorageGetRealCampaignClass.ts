@@ -2,8 +2,9 @@ import { AbiItem } from "web3-utils";
 import { AbiCoder, ethers } from "ethers";
 import axios from "axios";
 
-// Import the contract ABI
 import { abi } from "../MachineStationFactoryABI.json";
+import { config } from "dotenv";
+config();
 
 const rpcURL = "https://erpc-async.agung.peaq.network";
 const chainID = 9990;
@@ -20,15 +21,20 @@ const abiCoder = new AbiCoder();
 // Wallet details
 const ownerPrivateKey: string | undefined =
   process.env.CONTRACT_OWNER_PRIVATE_KEY ?? "";
+const machineOwnerPrivateKey: string | undefined =
+  process.env.MACHINE_OWNER_PRIVATE_KEY ?? "";
 
 const provider = new ethers.JsonRpcProvider(rpcURL);
 const ownerAccount = new ethers.Wallet(ownerPrivateKey, provider);
+const machineOwnerAccount = new ethers.Wallet(machineOwnerPrivateKey, provider);
 
 const PEAQ_SERVICE_URL =
   "https://lift-off-campaign-service-jx-devbr.jx.peaq.network";
 
 const API_KEY = "aa69cb8e92b2e27eb26996fc9b02f6df24";
 const PROJECT_API_KEY = "all_0821fcaa69";
+
+const MachineSmartAccountAddress = "0x2AF327E94B0fC205895d6f223799b53BDEFf6696";
 
 class PeaqGetRealCampaignClass {
   async submitGetRealStorageTx() {
@@ -95,6 +101,68 @@ class PeaqGetRealCampaignClass {
     } catch (error) {
       console.error("Error:", error);
     }
+  }
+
+  async transferBalance() {
+    let nonce = this.getRandomNonce();
+
+    const signature = await this.machineOwnerSignTypedDataTransferBalance(
+      "0xc1C79C29F5D2f689BaffC9EC3f2f627Ee9CC0333",
+      nonce
+    );
+
+    await this.transferMachineBalance(
+      "0xc1C79C29F5D2f689BaffC9EC3f2f627Ee9CC0333",
+      nonce,
+      signature
+    );
+  }
+
+  async machineOwnerSignTypedDataTransferBalance(
+    recipientAddress: string,
+    nonce: BigInt
+  ): Promise<string> {
+    const domain = {
+      name: "MachineSmartAccount",
+      version: "1",
+      chainId: chainID,
+      verifyingContract: MachineSmartAccountAddress,
+    };
+
+    const types = {
+      TransferMachineBalance: [
+        { name: "recipientAddress", type: "address" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = {
+      recipientAddress: recipientAddress,
+      nonce: nonce,
+    };
+
+    return await machineOwnerAccount.signTypedData(domain, types, message);
+  }
+
+  async transferMachineBalance(
+    recipientAddress: string,
+    nonce: BigInt,
+    signature: string
+  ) {
+    const methodData = contract.interface.encodeFunctionData(
+      "transferMachineBalance",
+      [recipientAddress, nonce, signature]
+    );
+
+    const tx = {
+      to: MachineSmartAccountAddress,
+      data: methodData,
+    };
+
+    const txResponse = await ownerAccount.sendTransaction(tx);
+    const receipt = await txResponse.wait();
+
+    console.log("Transfer Machine Balance Tx:", receipt?.hash);
   }
 
   async executeTransaction(
