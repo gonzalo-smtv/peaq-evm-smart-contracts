@@ -7,19 +7,17 @@ import { mnemonicGenerate, cryptoWaitReady } from "@polkadot/util-crypto";
 import axios from "axios";
 
 import { abi } from "../MachineStationFactoryABI.json";
-import { CustomDocumentFields } from "@peaq-network/sdk/src/modules/did";
-import dotenv from "dotenv";
 
-dotenv.config();
+import { CustomDocumentFields } from "@peaq-network/sdk/src/modules/did";
+import { config } from "dotenv";
+config();
 
 const rpcURL = "https://erpc-async.agung.peaq.network";
 const chainID = 9990;
 
 // Contract details
-// Replace with the your dedicated machine station factory contract address during deployment
 const MachineStationFactoryContractAddress =
-  "0x11f40Af48D731d0f473A382DcceDd64B1f2f15a3";
-
+  "0xc1C79C29F5D2f689BaffC9EC3f2f627Ee9CC0333";
 const contract = new ethers.ContractFactory(
   abi as AbiItem[],
   MachineStationFactoryContractAddress
@@ -53,7 +51,7 @@ class PeaqGetRealCampaignClass {
   async submitDIDTx() {
     try {
       const machineOwner = machineOwnerAccount.address;
-      const nonce = this.getRandomNonce();
+      let nonce = this.getRandomNonce();
       const target = "0x0000000000000000000000000000000000000800";
 
       // deploy a Machine Smart Account
@@ -85,20 +83,19 @@ class PeaqGetRealCampaignClass {
       // Address derived from DIDSubjectPair
       const DIDAddress = DIDSubjectPair.address;
 
-      console.log("DIDAddress: ", DIDAddress);
-
       // Email address signature will be  created and did address will be used to track the creator
       const postdata = {
         email: "gonzalo@thinkanddev.com",
         did_address: DIDAddress,
-        // FD: First Did
-        tag: "TEST",
+        tag: "CHA",
       };
 
-      return;
+      console.log("postdata: ", postdata);
 
       // Creating email  signature
       const emailSignature = await this.createEmailSignature(postdata);
+
+      console.log("emailSignature: ", emailSignature);
 
       const didName = `did:peaq:${machineAddress}#test`;
       const name = ethers.hexlify(ethers.toUtf8Bytes(didName));
@@ -119,8 +116,15 @@ class PeaqGetRealCampaignClass {
         [machineAddress, name, didVal, validityFor]
       );
 
-      const calldata = params.replace("0x", createDidFunctionSelector);
+      console.log("machineAddress: ", machineAddress);
+      console.log("name: ", name);
+      console.log("didVal: ", didVal, "\n", "\n");
 
+      const calldata = params.replace("0x", createDidFunctionSelector);
+      console.log("createDidFunctionSelector: ", createDidFunctionSelector);
+      console.log("calldata: ", calldata, "\n");
+
+      nonce = this.getRandomNonce();
       const machineOwnerSignature =
         await this.machineOwnerSignTypedDataExecuteMachine(
           machineAddress,
@@ -128,6 +132,8 @@ class PeaqGetRealCampaignClass {
           calldata,
           nonce
         );
+      console.log("machineOwnerSignature: ", machineOwnerSignature);
+
       const ownerSignature =
         await this.ownerSignTypedDataExecuteMachineTransaction(
           machineAddress,
@@ -135,6 +141,7 @@ class PeaqGetRealCampaignClass {
           calldata,
           nonce
         );
+      console.log("ownerSignature: ", ownerSignature, "\n");
 
       await this.executeMachineTransaction(
         machineAddress,
@@ -147,6 +154,68 @@ class PeaqGetRealCampaignClass {
     } catch (error) {
       console.error("Error:", error);
     }
+  }
+
+  async transferBalance() {
+    let nonce = this.getRandomNonce();
+    const signature = await this.ownerSignTypedDataTransferBalance(
+      machineOwnerAccount.address,
+      nonce
+    );
+    console.log("signature: ", signature);
+
+    if (!signature) {
+      throw new Error("Invalid signature");
+    }
+
+    await this.transferMachineStationBalance(
+      machineOwnerAccount.address,
+      nonce,
+      signature
+    );
+  }
+
+  async ownerSignTypedDataTransferBalance(
+    newMachineStationAddress: string,
+    nonce: BigInt
+  ): Promise<string> {
+    const domain = {
+      name: "MachineStationFactory",
+      version: "1",
+      chainId: chainID,
+      verifyingContract: MachineStationFactoryContractAddress,
+    };
+
+    const types = {
+      TransferMachineStationBalance: [
+        { name: "newMachineStationAddress", type: "address" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = {
+      newMachineStationAddress: newMachineStationAddress,
+      nonce: nonce,
+    };
+
+    return await ownerAccount.signTypedData(domain, types, message);
+  }
+
+  async transferMachineStationBalance(
+    newMachineStationAddress: string,
+    nonce: BigInt,
+    signature: string
+  ): Promise<string | undefined> {
+    const methodData = contract.interface.encodeFunctionData(
+      "transferMachineStationBalance",
+      [newMachineStationAddress, nonce, signature]
+    );
+
+    const txResponse = await this.sendTransaction(methodData);
+    const receipt = await txResponse.wait();
+
+    console.log("Transfer Balance Tx executed:", receipt?.hash);
+    return receipt?.hash;
   }
 
   getRandomNonce(): BigInt {
@@ -441,6 +510,8 @@ class PeaqGetRealCampaignClass {
     machineOwnerSignature: string
   ): Promise<void> {
     try {
+      console.log("Executing Machine Transaction...", "\n");
+
       const methodData = contract.interface.encodeFunctionData(
         "executeMachineTransaction",
         [machineAddress, target, data, nonce, signature, machineOwnerSignature]

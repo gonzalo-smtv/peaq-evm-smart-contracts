@@ -704,6 +704,22 @@
     },
     {
       "type": "error",
+      "name": "InsufficientFactoryBalance",
+      "inputs": [
+        {
+          "name": "balance",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "amount",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ]
+    },
+    {
+      "type": "error",
       "name": "InvalidMachineAddressNonceSignatureLength",
       "inputs": []
     },
@@ -789,7 +805,7 @@
     },
     {
       "type": "error",
-      "name": "TargetCallFailedV2",
+      "name": "TargetCallFailed",
       "inputs": [
         {
           "name": "target",

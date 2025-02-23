@@ -5,13 +5,12 @@ import axios from "axios";
 // Import the contract ABI
 import { abi } from "../MachineStationFactoryABI.json";
 
-// peaq RPC URL: https://peaq.api.onfinality.io/public
-const rpcURL = "https://erpc-async.agung.peaq.network"; // replace with peaq RPC URL during mainnet deployment.
+const rpcURL = "https://erpc-async.agung.peaq.network";
 const chainID = 9990;
 
 // Contract details
-// Replace with the your dedicated machine station factory contract address during deployment
-const MachineStationFactoryContractAddress: string = "";
+const MachineStationFactoryContractAddress: string =
+  "0xc1C79C29F5D2f689BaffC9EC3f2f627Ee9CC0333";
 const contract = new ethers.ContractFactory(
   abi as AbiItem[],
   MachineStationFactoryContractAddress
@@ -20,21 +19,16 @@ const abiCoder = new AbiCoder();
 
 // Wallet details
 const ownerPrivateKey: string | undefined =
-  process.env.CONTRACT_OWNER_PRIVATE_KEY ?? ""; // Replace with owner wallet's private key
+  process.env.CONTRACT_OWNER_PRIVATE_KEY ?? "";
 
 const provider = new ethers.JsonRpcProvider(rpcURL);
 const ownerAccount = new ethers.Wallet(ownerPrivateKey, provider);
 
-const PEAQ_SERVICE_URL = "<PEAQ_SERVICE_URL>"; // URL to the peaq campaign service
-// dev URL: https://lift-off-campaign-service-jx-devbr.jx.peaq.network
+const PEAQ_SERVICE_URL =
+  "https://lift-off-campaign-service-jx-devbr.jx.peaq.network";
 
-const API_KEY = "<API_KEY>"; // peaq campaign service APIKEY value added to the header of all requests
-// dev APIKEY: aa69cb8e92b2e27eb26996fc9b02f6df24
-// production APIKEY will be sent to you after deployment
-
-const PROJECT_API_KEY = "<API_KEY>"; // peaq campaign service unique APIKEY value for specific project added to the header of all requests
-// dev P-APIKEY: all_0821fcaa69
-// your production P-APIKEY will be sent to you after deployment
+const API_KEY = "aa69cb8e92b2e27eb26996fc9b02f6df24";
+const PROJECT_API_KEY = "all_0821fcaa69";
 
 class PeaqGetRealCampaignClass {
   async submitGetRealStorageTx() {
@@ -55,25 +49,15 @@ class PeaqGetRealCampaignClass {
       // [<YOUR_CUSTOM_TASK_TAG>] + [-] + [a-zA-Z0-9-_]
       // we use the dash [-] to split the item type when the event parser receives the chain events
       // ItemType has to be unique on every requests
-      const itemType = "<YOUR_CUSTOM_TASK_TAG>-" + now; // e.g "GET-REAL-CAMPAIGN-ITEM-TYPE-001", "GET-REAL-CAMPAIGN-ITEM-TYPE-002"
-      const postData = {
-        item_type: itemType,
-        email: "user@example.com", // replace this email with the user email address
-        tag: "<YOUR_CUSTOM_TASK_TAG>", // replace with your unique custom task tag
-        tags: [
-          "<YOUR-CUSTOM-TASK-TAG>",
-          "<20_YOUR-CUSTOM-TASK-TAG>",
-          "<30_YOUR-CUSTOM-TASK-TAG>",
-        ], // replace with your unique custom task tags
-      };
-
-      // register the itemType and tag or tags
-      await this.registerItemTypeAndTags(postData);
+      const itemType = "CHA-" + now; // e.g "GET-REAL-CAMPAIGN-ITEM-TYPE-001", "GET-REAL-CAMPAIGN-ITEM-TYPE-002"
 
       // encode the item storage data for submission to peaq network
       const itemTypeHex = ethers.hexlify(ethers.toUtf8Bytes(itemType));
       const item = "TASK-COMPLETED";
       const itemHex = ethers.hexlify(ethers.toUtf8Bytes(item));
+
+      console.log("itemTypeHex: ", itemTypeHex);
+      console.log("itemHex: ", itemHex);
 
       const params = abiCoder.encode(
         ["bytes", "bytes"],
@@ -81,6 +65,26 @@ class PeaqGetRealCampaignClass {
       );
 
       const calldata = params.replace("0x", addItemFunctionSelector);
+
+      console.log("calldata: ", calldata);
+
+      const postData = {
+        item_type: itemType,
+        email: "gonzalo@thinkanddev.com",
+        tag: "CHA",
+        tags: [
+          "CHA",
+          "CHA-R", // Referral
+          "CHA-CPC", // Check-in
+          "CHA-CPR", // Review
+        ],
+      };
+
+      console.log("postData: ", postData);
+
+      // register the itemType and tag or tags
+      await this.registerItemTypeAndTags(postData);
+
       const ownerSignature = await this.ownerSignTypedDataExecuteTransaction(
         target,
         calldata,
@@ -196,6 +200,9 @@ class PeaqGetRealCampaignClass {
   // Function to register your item type and tags on campaign verification service
   async registerItemTypeAndTags(data: any) {
     try {
+      console.log(
+        "Registering itemType and tags on campaign verification service "
+      );
       const response = await axios
         .post(`${PEAQ_SERVICE_URL}/v1/data/store`, data, {
           headers: {
@@ -213,6 +220,7 @@ class PeaqGetRealCampaignClass {
           throw err;
         });
 
+      console.log("response: ", response);
       // Note: You may need to adjust the response handling based on the service's response structure
       return response.data;
     } catch (error) {
@@ -235,4 +243,5 @@ const submitGetRealStorageTx = async () => {
     console.error(" storage submission failed: Error:", error);
   }
 };
+
 submitGetRealStorageTx().catch(console.error);
