@@ -33,7 +33,11 @@
     "npm": ">= 11.0.0"
   },
   "scripts": {
-    "build": "tsc ./getRealCampaignExamples/**.ts"
+    "build": "tsc ./getRealCampaignExamples/**.ts",
+    "start:submitDIDTx": "node ./getRealCampaignExamples/PeaqDidGetRealCampaignClass.js",
+    "start:submitGetRealStorageTx": "node ./getRealCampaignExamples/PeaqStorageGetRealCampaignClass.js",
+    "start:transferMachineStationBalance": "node ./getRealCampaignExamples/TransferMachineStationBalanceClass.js",
+    "start:transferMachineBalance": "node ./getRealCampaignExamples/TransferMachineBalanceClass.js"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.1.0",
