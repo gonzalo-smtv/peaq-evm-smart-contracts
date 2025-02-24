@@ -43,12 +43,12 @@ const ENVS = {
 
 console.log("ENVS: ", ENVS);
 
-const rpcURL = process.env.RPC_URL;
-const chainID = parseInt(process.env.CHAIN_ID);
+const rpcURL = ENVS.RPC_URL;
+const chainID = parseInt(ENVS.CHAIN_ID);
 
 // Contract details
 const MachineStationFactoryContractAddress =
-  process.env.MACHINE_STATION_FACTORY_CONTRACT_ADDRESS;
+  ENVS.MACHINE_STATION_FACTORY_CONTRACT_ADDRESS;
 
 const contract = new ethers.ContractFactory(
   abi as AbiItem[],
@@ -57,22 +57,21 @@ const contract = new ethers.ContractFactory(
 const abiCoder = new AbiCoder();
 
 // Wallet details
-const ownerPrivateKey: string | undefined =
-  process.env.CONTRACT_OWNER_PRIVATE_KEY;
+const ownerPrivateKey: string | undefined = ENVS.CONTRACT_OWNER_PRIVATE_KEY;
 const machineOwnerPrivateKey: string | undefined =
-  process.env.MACHINE_OWNER_PRIVATE_KEY;
+  ENVS.MACHINE_OWNER_PRIVATE_KEY;
 
 const provider = new ethers.JsonRpcProvider(rpcURL);
 const ownerAccount = new ethers.Wallet(ownerPrivateKey, provider);
 const machineOwnerAccount = new ethers.Wallet(machineOwnerPrivateKey, provider);
 
 // The seed phrase for DePIN Project, used for signing the DID
-const DEPIN_SEED = process.env.SEED_PHRASE;
+const DEPIN_SEED = ENVS.SEED_PHRASE;
 
-const PEAQ_SERVICE_URL = process.env.PEAQ_SERVICE_URL;
+const PEAQ_SERVICE_URL = ENVS.PEAQ_SERVICE_URL;
 
-const API_KEY = process.env.API_KEY;
-const PROJECT_API_KEY = process.env.PROJECT_API_KEY;
+const API_KEY = ENVS.API_KEY;
+const PROJECT_API_KEY = ENVS.PROJECT_API_KEY;
 
 class PeaqGetRealCampaignClass {
   async deployMachineSmartAccount(
