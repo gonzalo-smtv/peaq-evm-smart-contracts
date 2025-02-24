@@ -48,6 +48,79 @@ const API_KEY = "aa69cb8e92b2e27eb26996fc9b02f6df24";
 const PROJECT_API_KEY = "all_0821fcaa69";
 
 class PeaqGetRealCampaignClass {
+  async deployMachineSmartAccount(
+    machineOwner: string,
+    nonce: BigInt,
+    signature: string
+  ): Promise<string> {
+    try {
+      // Encode the method call data
+      const methodData = contract.interface.encodeFunctionData(
+        "deployMachineSmartAccount",
+        [machineOwner, nonce, signature]
+      );
+
+      // Send the transaction and get the receipt
+      const txResponse = await this.sendTransaction(methodData);
+
+      let receipt = await txResponse.wait().finally();
+
+      const logs = receipt?.logs;
+
+      // Compute the event signature
+      const eventSignature = ethers.id("MachineSmartAccountDeployed(address)");
+      console.log("eventSignature: ", eventSignature);
+
+      // Find the relevant log
+      const log = logs?.find((log) => log.topics[0] === eventSignature);
+
+      console.log("raw log: ", log);
+
+      if (!log) {
+        throw new Error("MachineSmartAccountDeployed event not found in logs");
+      }
+
+      // The deployed address is stored as the second topic (topics[1]) in a 32-byte format
+      const rawDeployedAddress = log.topics[1];
+      const deployedAddress = ethers.getAddress(
+        `0x${rawDeployedAddress.slice(26)}`
+      ); // Extract last 20 bytes
+
+      console.log("Machine Deploy Tx executed:", receipt?.hash);
+      console.log("Machine Deployed Address:", deployedAddress);
+      return deployedAddress;
+    } catch (error: any) {
+      console.error("Transaction failed. Error:", error);
+
+      // Check if the error is a revert error with data
+      if (error.data) {
+        try {
+          // Decode the revert error using the contract's ABI
+          const iface = new ethers.Interface(contract.interface.fragments);
+          const decodedError = iface.parseError(error.data);
+
+          console.log("Decoded Error:", decodedError);
+
+          // Extract error name and arguments
+          // const { name, args } = decodedError;
+          // console.log("Error Name:", name);
+          // console.log("Arguments:", args);
+
+          // if (name === "InvalidSignature") {
+          //   console.error("InvalidSignature Error Details:");
+          //   console.error("structHash:", args.structHash);
+          //   console.error("nonce:", args.nonce.toString());
+          // }
+        } catch (decodeError) {
+          console.error("Failed to decode error data:", decodeError);
+        }
+      } else {
+        console.error("Transaction failed without revert data:", error);
+      }
+    }
+    return "";
+  }
+
   async submitDIDTx() {
     try {
       const machineOwner = machineOwnerAccount.address;
@@ -156,10 +229,57 @@ class PeaqGetRealCampaignClass {
     }
   }
 
-  getRandomNonce(): BigInt {
-    const now = BigInt(Date.now());
-    const randomPart = BigInt(Math.floor(Math.random() * 1e18));
-    return now * randomPart;
+  async executeMachineTransaction(
+    machineAddress: string,
+    target: string,
+    data: string,
+    nonce: BigInt,
+    signature: string,
+    machineOwnerSignature: string
+  ): Promise<void> {
+    try {
+      console.log("Executing Machine Transaction...", "\n");
+
+      const methodData = contract.interface.encodeFunctionData(
+        "executeMachineTransaction",
+        [machineAddress, target, data, nonce, signature, machineOwnerSignature]
+      );
+
+      // Send the transaction and get the receipt
+      const txResponse = await this.sendTransaction(methodData);
+
+      let receipt = await txResponse.wait().finally();
+
+      console.log("Machine Tx executed:", receipt?.hash);
+    } catch (error: any) {
+      console.error("Transaction failed. Error:", error);
+
+      // Check if the error is a revert error with data
+      if (error.data) {
+        try {
+          // Decode the revert error using the contract's ABI
+          const iface = new ethers.Interface(contract.interface.fragments);
+          const decodedError = iface.parseError(error.data);
+
+          console.log("Decoded Error:", decodedError);
+
+          // Extract error name and arguments
+          // const { name, args } = decodedError;
+          // console.log("Error Name:", name);
+          // console.log("Arguments:", args);
+
+          // if (name === "InvalidSignature") {
+          //   console.error("InvalidSignature Error Details:");
+          //   console.error("structHash:", args.structHash);
+          //   console.error("nonce:", args.nonce.toString());
+          // }
+        } catch (decodeError) {
+          console.error("Failed to decode error data:", decodeError);
+        }
+      } else {
+        console.error("Transaction failed without revert data:", error);
+      }
+    }
   }
 
   async ownerSignTypedDataDeployMachineSmartAccount(
@@ -191,181 +311,6 @@ class PeaqGetRealCampaignClass {
     const signature = await ownerAccount.signTypedData(domain, types, message);
 
     return signature;
-  }
-
-  async deployMachineSmartAccount(
-    machineOwner: string,
-    nonce: BigInt,
-    signature: string
-  ): Promise<string> {
-    try {
-      // Encode the method call data
-      const methodData = contract.interface.encodeFunctionData(
-        "deployMachineSmartAccount",
-        [machineOwner, nonce, signature]
-      );
-
-      // Send the transaction and get the receipt
-      const txResponse = await this.sendTransaction(methodData);
-
-      let receipt = await txResponse.wait().finally();
-
-      const logs = receipt?.logs;
-
-      // Compute the event signature
-      const eventSignature = ethers.id("MachineSmartAccountDeployed(address)");
-      console.log("eventSignature: ", eventSignature);
-
-      // Find the relevant log
-      const log = logs?.find((log) => log.topics[0] === eventSignature);
-
-      console.log("raw log: ", log);
-
-      if (!log) {
-        throw new Error("MachineSmartAccountDeployed event not found in logs");
-      }
-
-      // The deployed address is stored as the second topic (topics[1]) in a 32-byte format
-      const rawDeployedAddress = log.topics[1];
-      const deployedAddress = ethers.getAddress(
-        `0x${rawDeployedAddress.slice(26)}`
-      ); // Extract last 20 bytes
-
-      console.log("Machine Deploy Tx executed:", receipt?.hash);
-      console.log("Machine Deployed Address:", deployedAddress);
-      return deployedAddress;
-    } catch (error: any) {
-      console.error("Transaction failed. Error:", error);
-
-      // Check if the error is a revert error with data
-      if (error.data) {
-        try {
-          // Decode the revert error using the contract's ABI
-          const iface = new ethers.Interface(contract.interface.fragments);
-          const decodedError = iface.parseError(error.data);
-
-          console.log("Decoded Error:", decodedError);
-
-          // Extract error name and arguments
-          // const { name, args } = decodedError;
-          // console.log("Error Name:", name);
-          // console.log("Arguments:", args);
-
-          // if (name === "InvalidSignature") {
-          //   console.error("InvalidSignature Error Details:");
-          //   console.error("structHash:", args.structHash);
-          //   console.error("nonce:", args.nonce.toString());
-          // }
-        } catch (decodeError) {
-          console.error("Failed to decode error data:", decodeError);
-        }
-      } else {
-        console.error("Transaction failed without revert data:", error);
-      }
-    }
-    return "";
-  }
-
-  // Helper function to sign and send transactions
-  async sendTransaction(
-    methodData: string
-  ): Promise<ethers.TransactionResponse> {
-    const tx = {
-      to: MachineStationFactoryContractAddress,
-      data: methodData,
-    };
-
-    return await ownerAccount.sendTransaction(tx);
-  }
-
-  async generateNewDidAddress() {
-    await cryptoWaitReady();
-    // Generate a new mnemonic
-    const mnemonic = mnemonicGenerate();
-
-    // Create a keyring instance
-    const keyring = new Keyring({ type: "sr25519" });
-
-    // Add a new account to the keyring
-    const keyPair = keyring.addFromMnemonic(mnemonic);
-
-    console.log("Generated Address:", keyPair.address);
-
-    return {
-      keyPair,
-      mnemonic,
-      address: keyPair.address,
-    };
-  }
-
-  // Function to create email signature
-  async createEmailSignature(data: any) {
-    try {
-      const response = await axios
-        .post(`${PEAQ_SERVICE_URL}/v1/sign`, data, {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            APIKEY: API_KEY,
-            "P-APIKEY": PROJECT_API_KEY,
-          },
-        })
-        .then((response: any) => {
-          return response.data;
-        })
-        .catch((err: any) => {
-          console.error(err);
-          throw err;
-        });
-
-      // Note: You may need to adjust the response handling based on the service's response structure
-      return response.data.signature;
-    } catch (error) {
-      console.error("Error creating email signature", error);
-      throw error;
-    }
-  }
-
-  async generateDIDHash(
-    machineOwnerAddress: string,
-    didAddress: string,
-    emailSignature: string
-  ): Promise<string> {
-    const keyring = new Keyring({ type: "sr25519" });
-
-    // Creating key pair for the DePin from seed
-    const DePinPair = keyring.addFromUri(DEPIN_SEED);
-
-    // Generating signature using DePinSeed and DIDSubjectPair's address as data
-    const issuerSignature = u8aToHex(DePinPair.sign(stringToU8a(didAddress)));
-
-    const customFields: CustomDocumentFields = {
-      prefix: "peaq",
-      controller: "5FEw7aWmqcnWDaMcwjKyGtJMjQfqYGxXmDWKVfcpnEPmUM7q",
-      signature: {
-        type: "Ed25519VerificationKey2020",
-        issuer: DePinPair?.address,
-        hash: issuerSignature,
-      },
-      services: [
-        {
-          id: "#emailSignature",
-          type: "emailSignature",
-          data: emailSignature,
-        },
-        {
-          id: "#owner",
-          type: "owner",
-          data: machineOwnerAddress,
-        },
-      ],
-    };
-
-    const did_hash = await Sdk.generateDidDocument({
-      address: didAddress,
-      customDocumentFields: customFields,
-    });
-    return did_hash.value;
   }
 
   async machineOwnerSignTypedDataExecuteMachine(
@@ -439,56 +384,111 @@ class PeaqGetRealCampaignClass {
     return signature;
   }
 
-  async executeMachineTransaction(
-    machineAddress: string,
-    target: string,
-    data: string,
-    nonce: BigInt,
-    signature: string,
-    machineOwnerSignature: string
-  ): Promise<void> {
+  // Helper function to sign and send transactions
+  async sendTransaction(
+    methodData: string
+  ): Promise<ethers.TransactionResponse> {
+    const tx = {
+      to: MachineStationFactoryContractAddress,
+      data: methodData,
+    };
+
+    return await ownerAccount.sendTransaction(tx);
+  }
+
+  getRandomNonce(): BigInt {
+    const now = BigInt(Date.now());
+    const randomPart = BigInt(Math.floor(Math.random() * 1e18));
+    return now * randomPart;
+  }
+
+  async generateDIDHash(
+    machineOwnerAddress: string,
+    didAddress: string,
+    emailSignature: string
+  ): Promise<string> {
+    const keyring = new Keyring({ type: "sr25519" });
+
+    // Creating key pair for the DePin from seed
+    const DePinPair = keyring.addFromUri(DEPIN_SEED);
+
+    // Generating signature using DePinSeed and DIDSubjectPair's address as data
+    const issuerSignature = u8aToHex(DePinPair.sign(stringToU8a(didAddress)));
+
+    const customFields: CustomDocumentFields = {
+      prefix: "peaq",
+      controller: "5FEw7aWmqcnWDaMcwjKyGtJMjQfqYGxXmDWKVfcpnEPmUM7q",
+      signature: {
+        type: "Ed25519VerificationKey2020",
+        issuer: DePinPair?.address,
+        hash: issuerSignature,
+      },
+      services: [
+        {
+          id: "#emailSignature",
+          type: "emailSignature",
+          data: emailSignature,
+        },
+        {
+          id: "#owner",
+          type: "owner",
+          data: machineOwnerAddress,
+        },
+      ],
+    };
+
+    const did_hash = await Sdk.generateDidDocument({
+      address: didAddress,
+      customDocumentFields: customFields,
+    });
+    return did_hash.value;
+  }
+
+  async generateNewDidAddress() {
+    await cryptoWaitReady();
+    // Generate a new mnemonic
+    const mnemonic = mnemonicGenerate();
+
+    // Create a keyring instance
+    const keyring = new Keyring({ type: "sr25519" });
+
+    // Add a new account to the keyring
+    const keyPair = keyring.addFromMnemonic(mnemonic);
+
+    console.log("Generated Address:", keyPair.address);
+
+    return {
+      keyPair,
+      mnemonic,
+      address: keyPair.address,
+    };
+  }
+
+  // Function to create email signature
+  async createEmailSignature(data: any) {
     try {
-      console.log("Executing Machine Transaction...", "\n");
+      const response = await axios
+        .post(`${PEAQ_SERVICE_URL}/v1/sign`, data, {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            APIKEY: API_KEY,
+            "P-APIKEY": PROJECT_API_KEY,
+          },
+        })
+        .then((response: any) => {
+          return response.data;
+        })
+        .catch((err: any) => {
+          console.error(err);
+          throw err;
+        });
 
-      const methodData = contract.interface.encodeFunctionData(
-        "executeMachineTransaction",
-        [machineAddress, target, data, nonce, signature, machineOwnerSignature]
-      );
-
-      // Send the transaction and get the receipt
-      const txResponse = await this.sendTransaction(methodData);
-
-      let receipt = await txResponse.wait().finally();
-
-      console.log("Machine Tx executed:", receipt?.hash);
-    } catch (error: any) {
-      console.error("Transaction failed. Error:", error);
-
-      // Check if the error is a revert error with data
-      if (error.data) {
-        try {
-          // Decode the revert error using the contract's ABI
-          const iface = new ethers.Interface(contract.interface.fragments);
-          const decodedError = iface.parseError(error.data);
-
-          console.log("Decoded Error:", decodedError);
-
-          // Extract error name and arguments
-          // const { name, args } = decodedError;
-          // console.log("Error Name:", name);
-          // console.log("Arguments:", args);
-
-          // if (name === "InvalidSignature") {
-          //   console.error("InvalidSignature Error Details:");
-          //   console.error("structHash:", args.structHash);
-          //   console.error("nonce:", args.nonce.toString());
-          // }
-        } catch (decodeError) {
-          console.error("Failed to decode error data:", decodeError);
-        }
-      } else {
-        console.error("Transaction failed without revert data:", error);
-      }
+      // Note: You may need to adjust the response handling based on the service's response structure
+      return response.data.signature;
+    } catch (error) {
+      console.error("Error creating email signature", error);
+      throw error;
     }
   }
 }
