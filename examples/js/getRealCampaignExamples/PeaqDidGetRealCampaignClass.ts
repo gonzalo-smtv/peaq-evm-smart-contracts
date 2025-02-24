@@ -6,22 +6,33 @@ import { u8aToHex, stringToU8a } from "@polkadot/util";
 import { mnemonicGenerate, cryptoWaitReady } from "@polkadot/util-crypto";
 import axios from "axios";
 
-// Import the contract ABI
 import { abi } from "../MachineStationFactoryABI.json";
+
 import { CustomDocumentFields } from "@peaq-network/sdk/src/modules/did";
 
 // Load environment variables
 import { config } from "dotenv";
 config();
 
-// peaq RPC URL: https://peaq.api.onfinality.io/public
-const rpcURL = "https://erpc-async.agung.peaq.network"; // replace with peaq RPC URL during mainnet deployment.
-const chainID = 3338;
+if (
+  !process.env.MACHINE_STATION_FACTORY_CONTRACT_ADDRESS ||
+  !process.env.CONTRACT_OWNER_PRIVATE_KEY ||
+  !process.env.MACHINE_OWNER_PRIVATE_KEY ||
+  !process.env.SEED_PHRASE ||
+  !process.env.API_KEY ||
+  !process.env.PROJECT_API_KEY ||
+  !process.env.PEAQ_SERVICE_URL
+) {
+  throw new Error("Environment variables not set");
+}
+
+const rpcURL = "https://erpc-async.agung.peaq.network";
+const chainID = 9990;
 
 // Contract details
-// Replace with the your dedicated machine station factory contract address during deployment
-const MachineStationFactoryContractAddress: string =
-  "0x31B80DbA6806E0335Bfac6D12A5A820C32D73d68";
+const MachineStationFactoryContractAddress =
+  process.env.MACHINE_STATION_FACTORY_CONTRACT_ADDRESS;
+
 const contract = new ethers.ContractFactory(
   abi as AbiItem[],
   MachineStationFactoryContractAddress
@@ -30,30 +41,21 @@ const abiCoder = new AbiCoder();
 
 // Wallet details
 const ownerPrivateKey: string | undefined =
-  process.env.CONTRACT_OWNER_PRIVATE_KEY ?? ""; // Replace with owner wallet's private key
+  process.env.CONTRACT_OWNER_PRIVATE_KEY;
 const machineOwnerPrivateKey: string | undefined =
-  process.env.MACHINE_OWNER_PRIVATE_KEY ?? ""; // Replace with machine owner wallet's private key
-
-if (!ownerPrivateKey || !machineOwnerPrivateKey) {
-  throw new Error("Owner or Machine Owner Private Key not provided");
-}
+  process.env.MACHINE_OWNER_PRIVATE_KEY;
 
 const provider = new ethers.JsonRpcProvider(rpcURL);
 const ownerAccount = new ethers.Wallet(ownerPrivateKey, provider);
 const machineOwnerAccount = new ethers.Wallet(machineOwnerPrivateKey, provider);
 
-const DEPIN_SEED = "<DEPIN_SEED>"; // The seed phrase for DePIN Project, used for signing the DID
+// The seed phrase for DePIN Project, used for signing the DID
+const DEPIN_SEED = process.env.SEED_PHRASE;
 
-const PEAQ_SERVICE_URL = "<PEAQ_SERVICE_URL>"; // URL to the peaq campaign service
-// dev URL: https://lift-off-campaign-service-jx-devbr.jx.peaq.network
+const PEAQ_SERVICE_URL = process.env.PEAQ_SERVICE_URL;
 
-const API_KEY = "<API_KEY>"; // peaq campaign service APIKEY value added to the header of all requests
-// dev APIKEY: aa69cb8e92b2e27eb26996fc9b02f6df24
-// production APIKEY will be sent to you after deployment
-
-const PROJECT_API_KEY = "<API_KEY>"; // peaq campaign service unique APIKEY value for specific project added to the header of all requests
-// dev P-APIKEY: all_0821fcaa69
-// your production P-APIKEY will be sent to you after deployment
+const API_KEY = process.env.API_KEY;
+const PROJECT_API_KEY = process.env.PROJECT_API_KEY;
 
 class PeaqGetRealCampaignClass {
   async deployMachineSmartAccount(
@@ -141,6 +143,7 @@ class PeaqGetRealCampaignClass {
           machineOwner,
           nonce
         );
+
       const machineAddress = await this.deployMachineSmartAccount(
         machineOwner,
         nonce,
@@ -164,15 +167,18 @@ class PeaqGetRealCampaignClass {
 
       // Email address signature will be  created and did address will be used to track the creator
       const postdata = {
-        email: "<EMAIL>",
+        email: "gonzalo@thinkanddev.com",
         did_address: DIDAddress,
-        tag: "<YOUR_CUSTOM_TASK_TAG>", // replace with your unique custom task tag
+        tag: "TEST", // CHA
       };
+
+      console.log("");
+      console.log("postdata: ", postdata);
 
       // Creating email  signature
       const emailSignature = await this.createEmailSignature(postdata);
 
-      const didName = `did:peaq:${machineAddress}#test`;
+      const didName = `did:peaq:${machineAddress}#charge`;
       const name = ethers.hexlify(ethers.toUtf8Bytes(didName));
 
       const value = await this.generateDIDHash(
@@ -191,6 +197,10 @@ class PeaqGetRealCampaignClass {
         [machineAddress, name, didVal, validityFor]
       );
 
+      console.log("machineAddress: ", machineAddress);
+      console.log("name: ", name);
+      console.log("didVal: ", didVal, "\n", "\n");
+
       const calldata = params.replace("0x", createDidFunctionSelector);
 
       nonce = this.getRandomNonce();
@@ -201,6 +211,7 @@ class PeaqGetRealCampaignClass {
           calldata,
           nonce
         );
+
       const ownerSignature =
         await this.ownerSignTypedDataExecuteMachineTransaction(
           machineAddress,
@@ -231,6 +242,8 @@ class PeaqGetRealCampaignClass {
     machineOwnerSignature: string
   ): Promise<void> {
     try {
+      console.log("Executing Machine Transaction...", "\n");
+
       const methodData = contract.interface.encodeFunctionData(
         "executeMachineTransaction",
         [machineAddress, target, data, nonce, signature, machineOwnerSignature]
@@ -253,17 +266,6 @@ class PeaqGetRealCampaignClass {
           const decodedError = iface.parseError(error.data);
 
           console.log("Decoded Error:", decodedError);
-
-          // Extract error name and arguments
-          // const { name, args } = decodedError;
-          // console.log("Error Name:", name);
-          // console.log("Arguments:", args);
-
-          // if (name === "InvalidSignature") {
-          //   console.error("InvalidSignature Error Details:");
-          //   console.error("structHash:", args.structHash);
-          //   console.error("nonce:", args.nonce.toString());
-          // }
         } catch (decodeError) {
           console.error("Failed to decode error data:", decodeError);
         }
