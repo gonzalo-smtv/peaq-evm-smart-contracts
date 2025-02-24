@@ -21,13 +21,30 @@ if (
   !process.env.SEED_PHRASE ||
   !process.env.API_KEY ||
   !process.env.PROJECT_API_KEY ||
-  !process.env.PEAQ_SERVICE_URL
+  !process.env.PEAQ_SERVICE_URL ||
+  !process.env.RPC_URL ||
+  !process.env.CHAIN_ID
 ) {
   throw new Error("Environment variables not set");
 }
 
-const rpcURL = "https://erpc-async.agung.peaq.network";
-const chainID = 9990;
+const ENVS = {
+  MACHINE_STATION_FACTORY_CONTRACT_ADDRESS:
+    process.env.MACHINE_STATION_FACTORY_CONTRACT_ADDRESS,
+  CONTRACT_OWNER_PRIVATE_KEY: process.env.CONTRACT_OWNER_PRIVATE_KEY,
+  MACHINE_OWNER_PRIVATE_KEY: process.env.MACHINE_OWNER_PRIVATE_KEY,
+  SEED_PHRASE: process.env.SEED_PHRASE,
+  API_KEY: process.env.API_KEY,
+  PROJECT_API_KEY: process.env.PROJECT_API_KEY,
+  PEAQ_SERVICE_URL: process.env.PEAQ_SERVICE_URL,
+  RPC_URL: process.env.RPC_URL,
+  CHAIN_ID: process.env.CHAIN_ID,
+};
+
+console.log("ENVS: ", ENVS);
+
+const rpcURL = process.env.RPC_URL;
+const chainID = parseInt(process.env.CHAIN_ID);
 
 // Contract details
 const MachineStationFactoryContractAddress =
