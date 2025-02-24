@@ -36,7 +36,7 @@ const provider = new ethers.JsonRpcProvider(rpcURL);
 const ownerAccount = new ethers.Wallet(ownerPrivateKey, provider);
 const machineOwnerAccount = new ethers.Wallet(machineOwnerPrivateKey, provider);
 
-class TransferMachineBalanceClass {
+class TransferMachineStationBalance {
   async transferBalance() {
     let nonce = this.getRandomNonce();
 
@@ -124,9 +124,9 @@ class TransferMachineBalanceClass {
 }
 
 const transferBalance = async () => {
-  const transferMachineBalanceClass = new TransferMachineBalanceClass();
+  const transferMachineStationBalance = new TransferMachineStationBalance();
   try {
-    await transferMachineBalanceClass.transferBalance();
+    await transferMachineStationBalance.transferBalance();
   } catch (error) {
     console.error("Error transferring balance: ", error);
   }
