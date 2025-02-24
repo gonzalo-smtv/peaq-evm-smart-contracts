@@ -87,7 +87,7 @@ class PeaqGetRealCampaignClass {
       const postdata = {
         email: "gonzalo@thinkanddev.com",
         did_address: DIDAddress,
-        tag: "CHA",
+        tag: "TEST", // CHA
       };
 
       console.log("postdata: ", postdata);
@@ -97,7 +97,7 @@ class PeaqGetRealCampaignClass {
 
       console.log("emailSignature: ", emailSignature);
 
-      const didName = `did:peaq:${machineAddress}#test`;
+      const didName = `did:peaq:${machineAddress}#charge`;
       const name = ethers.hexlify(ethers.toUtf8Bytes(didName));
 
       const value = await this.generateDIDHash(
@@ -154,68 +154,6 @@ class PeaqGetRealCampaignClass {
     } catch (error) {
       console.error("Error:", error);
     }
-  }
-
-  async transferBalance() {
-    let nonce = this.getRandomNonce();
-    const signature = await this.ownerSignTypedDataTransferBalance(
-      machineOwnerAccount.address,
-      nonce
-    );
-    console.log("signature: ", signature);
-
-    if (!signature) {
-      throw new Error("Invalid signature");
-    }
-
-    await this.transferMachineStationBalance(
-      machineOwnerAccount.address,
-      nonce,
-      signature
-    );
-  }
-
-  async ownerSignTypedDataTransferBalance(
-    newMachineStationAddress: string,
-    nonce: BigInt
-  ): Promise<string> {
-    const domain = {
-      name: "MachineStationFactory",
-      version: "1",
-      chainId: chainID,
-      verifyingContract: MachineStationFactoryContractAddress,
-    };
-
-    const types = {
-      TransferMachineStationBalance: [
-        { name: "newMachineStationAddress", type: "address" },
-        { name: "nonce", type: "uint256" },
-      ],
-    };
-
-    const message = {
-      newMachineStationAddress: newMachineStationAddress,
-      nonce: nonce,
-    };
-
-    return await ownerAccount.signTypedData(domain, types, message);
-  }
-
-  async transferMachineStationBalance(
-    newMachineStationAddress: string,
-    nonce: BigInt,
-    signature: string
-  ): Promise<string | undefined> {
-    const methodData = contract.interface.encodeFunctionData(
-      "transferMachineStationBalance",
-      [newMachineStationAddress, nonce, signature]
-    );
-
-    const txResponse = await this.sendTransaction(methodData);
-    const receipt = await txResponse.wait();
-
-    console.log("Transfer Balance Tx executed:", receipt?.hash);
-    return receipt?.hash;
   }
 
   getRandomNonce(): BigInt {
@@ -560,7 +498,7 @@ const createDid = async () => {
   const campaignClass = new PeaqGetRealCampaignClass();
 
   try {
-    await campaignClass.transferBalance();
+    await campaignClass.submitDIDTx();
   } catch (error) {
     console.error("DID Creation Error:", error);
   }

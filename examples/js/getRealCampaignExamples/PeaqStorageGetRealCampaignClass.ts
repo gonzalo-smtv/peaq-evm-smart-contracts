@@ -62,6 +62,7 @@ class PeaqGetRealCampaignClass {
       const item = "TASK-COMPLETED";
       const itemHex = ethers.hexlify(ethers.toUtf8Bytes(item));
 
+      console.log("itemType: ", itemType);
       console.log("itemTypeHex: ", itemTypeHex);
       console.log("itemHex: ", itemHex);
 
@@ -107,12 +108,12 @@ class PeaqGetRealCampaignClass {
     let nonce = this.getRandomNonce();
 
     const signature = await this.machineOwnerSignTypedDataTransferBalance(
-      "0xc1C79C29F5D2f689BaffC9EC3f2f627Ee9CC0333",
+      machineOwnerAccount.address,
       nonce
     );
 
     await this.transferMachineBalance(
-      "0xc1C79C29F5D2f689BaffC9EC3f2f627Ee9CC0333",
+      machineOwnerAccount.address,
       nonce,
       signature
     );
