@@ -1,21 +1,16 @@
 import { ethers } from "ethers";
 import { Keyring } from "@polkadot/keyring";
 import { u8aToHex, stringToU8a } from "@polkadot/util";
-import { mnemonicGenerate, cryptoWaitReady } from "@polkadot/util-crypto";
-import axios from "axios";
 import { Sdk } from "@peaq-network/sdk";
 import { CustomDocumentFields } from "@peaq-network/sdk/src/modules/did";
-
 import { abi } from "../MachineStationFactoryABI.json";
+import axios from "axios";
 
-/**
- * Configuration for PeaqSDK
- */
 export interface PeaqSDKConfig {
   // Network configuration
   rpcUrl: string;
   chainId: number;
-  contractAddress: string;
+  machineStationFactoryContractAddress: string;
 
   // Authentication
   ownerPrivateKey: string;
@@ -26,25 +21,23 @@ export interface PeaqSDKConfig {
   apiKey: string;
   projectApiKey: string;
 
-  // Optional DePIN seed for DID operations
-  depinSeed?: string;
+  // TODO: Can we use the machineOwnerPrivateKey for this?
+  // DePIN seed for DID operations
+  depinSeed: string;
 }
 
-/**
- * Main SDK class for interacting with the Peaq network
- */
 export class PeaqSDK {
-  private provider: ethers.JsonRpcProvider;
-  private ownerAccount: ethers.Wallet;
-  private machineOwnerAccount?: ethers.Wallet;
-  private contract: ethers.Contract;
-  private abiCoder: ethers.AbiCoder;
   private config: PeaqSDKConfig;
+  private provider: ethers.JsonRpcProvider;
+  private machineStationFactoryContract: ethers.Contract;
+  private ownerAccount: ethers.Wallet;
+  private machineOwnerAccount: ethers.Wallet;
+  private abiCoder: ethers.AbiCoder;
 
-  /**
-   * Create a new PeaqSDK instance
-   */
   constructor(config: PeaqSDKConfig) {
+    if (this.checkConfig(config)) {
+      throw new Error("Invalid configuration");
+    }
     this.config = config;
     this.provider = new ethers.JsonRpcProvider(config.rpcUrl);
     this.ownerAccount = new ethers.Wallet(
@@ -52,15 +45,8 @@ export class PeaqSDK {
       this.provider
     );
 
-    if (config.machineOwnerPrivateKey) {
-      this.machineOwnerAccount = new ethers.Wallet(
-        config.machineOwnerPrivateKey,
-        this.provider
-      );
-    }
-
-    this.contract = new ethers.Contract(
-      config.contractAddress,
+    this.machineStationFactoryContract = new ethers.Contract(
+      config.machineStationFactoryContractAddress,
       abi,
       this.ownerAccount
     );
@@ -68,19 +54,9 @@ export class PeaqSDK {
     this.abiCoder = new ethers.AbiCoder();
   }
 
-  /**
-   * Machine operations
-   */
-  public machine = {
-    /**
-     * Deploy a new machine smart account
-     */
-    deploySmartAccount: async (params?: {
-      machineOwnerAddress?: string;
-    }): Promise<string> => {
-      // Use provided address or default to the machineOwnerAccount address
-      const machineOwner =
-        params?.machineOwnerAddress || this.machineOwnerAccount?.address;
+  public machineStationFactory = {
+    deploySmartAccount: async (): Promise<string> => {
+      const machineOwner = this.machineOwnerAccount?.address;
 
       if (!machineOwner) {
         throw new Error("Machine owner address is required");
@@ -96,16 +72,16 @@ export class PeaqSDK {
 
       try {
         // Encode the method call data
-        const methodData = this.contract.interface.encodeFunctionData(
-          "deployMachineSmartAccount",
-          [machineOwner, nonce, signature]
-        );
+        const methodData =
+          this.machineStationFactoryContract.interface.encodeFunctionData(
+            "deployMachineSmartAccount",
+            [machineOwner, nonce, signature]
+          );
 
-        // Send the transaction and get the receipt
         const txResponse = await this.sendTransaction(methodData);
         const receipt = await txResponse.wait();
 
-        // Get the machine address from the event logs
+        // Get the machineStationFactory address from the event logs
         const logs = receipt?.logs;
         const eventSignature = ethers.id(
           "MachineSmartAccountDeployed(address)"
@@ -131,9 +107,6 @@ export class PeaqSDK {
       }
     },
 
-    /**
-     * Execute a transaction on a machine smart account
-     */
     executeTransaction: async (params: {
       machineAddress: string;
       target: string;
@@ -148,7 +121,7 @@ export class PeaqSDK {
         );
       }
 
-      // Get signatures from both owner and machine owner
+      // Get signatures from both owner and machineStationFactory owner
       const ownerSignature =
         await this.ownerSignTypedDataExecuteMachineTransaction(
           machineAddress,
@@ -167,19 +140,19 @@ export class PeaqSDK {
 
       try {
         // Encode the method call data
-        const methodData = this.contract.interface.encodeFunctionData(
-          "executeMachineTransaction",
-          [
-            machineAddress,
-            target,
-            data,
-            nonce,
-            ownerSignature,
-            machineOwnerSignature,
-          ]
-        );
+        const methodData =
+          this.machineStationFactoryContract.interface.encodeFunctionData(
+            "executeMachineTransaction",
+            [
+              machineAddress,
+              target,
+              data,
+              nonce,
+              ownerSignature,
+              machineOwnerSignature,
+            ]
+          );
 
-        // Send the transaction and get the receipt
         const txResponse = await this.sendTransaction(methodData);
         return await txResponse.wait();
       } catch (error: any) {
@@ -189,20 +162,14 @@ export class PeaqSDK {
     },
   };
 
-  /**
-   * Identity (DID) operations
-   */
   public identity = {
-    /**
-     * Add a DID attribute to a machine
-     */
     addAttribute: async (params: {
-      machineAddress: string;
+      machineOrUserAddress: string;
       didAddress: string;
       email: string;
       tag: string;
     }): Promise<ethers.TransactionReceipt | null> => {
-      const { machineAddress, didAddress, email, tag } = params;
+      const { machineOrUserAddress, didAddress, email, tag } = params;
       const target = "0x0000000000000000000000000000000000000800";
 
       // Create email signature
@@ -214,7 +181,7 @@ export class PeaqSDK {
 
       // Generate DID document hash
       const didValue = await this.generateDIDHash(
-        this.machineOwnerAccount?.address || "",
+        this.machineOwnerAccount.address,
         didAddress,
         emailSignature
       );
@@ -226,65 +193,28 @@ export class PeaqSDK {
         .keccak256(ethers.toUtf8Bytes(addAttributeFunctionSignature))
         .substring(0, 10);
 
-      const didName = `did:peaq:${machineAddress}#test`;
+      const didName = `did:peaq:${machineOrUserAddress}#test`;
       const name = ethers.hexlify(ethers.toUtf8Bytes(didName));
       const didVal = ethers.hexlify(ethers.toUtf8Bytes(didValue));
       const validityFor = 0;
 
       const calldataParams = this.abiCoder.encode(
         ["address", "bytes", "bytes", "uint32"],
-        [machineAddress, name, didVal, validityFor]
+        [machineOrUserAddress, name, didVal, validityFor]
       );
 
       const calldata = calldataParams.replace("0x", createDidFunctionSelector);
 
-      // Execute the transaction using the machine
-      return await this.machine.executeTransaction({
-        machineAddress,
+      // Execute the transaction using the machineStationFactory
+      return await this.machineStationFactory.executeTransaction({
+        machineAddress: machineOrUserAddress,
         target,
         data: calldata,
       });
     },
-
-    /**
-     * Create machine with DID in one operation
-     */
-    createMachineWithDID: async (params: {
-      email: string;
-      tag: string;
-      didAddress: string;
-      machineOwnerAddress?: string;
-    }): Promise<{
-      machineAddress: string;
-      transactionHash: string | undefined;
-    }> => {
-      // Step 1: Deploy machine
-      const machineAddress = await this.machine.deploySmartAccount({
-        machineOwnerAddress: params.machineOwnerAddress,
-      });
-
-      // Step 3: Add attribute
-      const receipt = await this.identity.addAttribute({
-        machineAddress,
-        didAddress: params.didAddress,
-        email: params.email,
-        tag: params.tag,
-      });
-
-      return {
-        machineAddress,
-        transactionHash: receipt?.hash,
-      };
-    },
   };
 
-  /**
-   * Storage operations
-   */
   public storage = {
-    /**
-     * Store data in peaq storage
-     */
     storeData: async (params: {
       itemType?: string;
       email: string;
@@ -332,12 +262,12 @@ export class PeaqSDK {
         );
 
         // Encode the method call data
-        const methodData = this.contract.interface.encodeFunctionData(
-          "executeTransaction",
-          [target, calldata, nonce, ownerSignature]
-        );
+        const methodData =
+          this.machineStationFactoryContract.interface.encodeFunctionData(
+            "executeTransaction",
+            [target, calldata, nonce, ownerSignature]
+          );
 
-        // Send the transaction and get the receipt
         const txResponse = await this.sendTransaction(methodData);
         return await txResponse.wait();
       } catch (error: any) {
@@ -349,40 +279,36 @@ export class PeaqSDK {
 
   // PRIVATE HELPER METHODS
 
-  /**
-   * Generate a random nonce
-   */
+  private checkConfig(config: PeaqSDKConfig): boolean {
+    // TODO: check correct format of config values
+    return !(
+      config.rpcUrl &&
+      config.chainId &&
+      config.machineStationFactoryContractAddress &&
+      config.ownerPrivateKey &&
+      config.serviceUrl &&
+      config.apiKey &&
+      config.projectApiKey &&
+      config.depinSeed
+    );
+  }
+
   private getRandomNonce(): bigint {
     const now = BigInt(Date.now());
     const randomPart = BigInt(Math.floor(Math.random() * 1e18));
     return now * randomPart;
   }
 
-  /**
-   * Sign and send a transaction
-   */
-  private async sendTransaction(
-    methodData: string
-  ): Promise<ethers.TransactionResponse> {
-    const tx = {
-      to: this.config.contractAddress,
-      data: methodData,
-    };
-
-    return await this.ownerAccount.sendTransaction(tx);
-  }
-
-  /**
-   * Handle transaction errors
-   */
   private handleTransactionError(error: any): void {
     console.error("Transaction failed. Error:", error);
 
     // Check if the error is a revert error with data
     if (error.data) {
       try {
-        // Decode the revert error using the contract's ABI
-        const iface = new ethers.Interface(this.contract.interface.fragments);
+        // Decode the revert error using the machineStationFactoryContract's ABI
+        const iface = new ethers.Interface(
+          this.machineStationFactoryContract.interface.fragments
+        );
         const decodedError = iface.parseError(error.data);
 
         console.log("Decoded Error:", decodedError);
@@ -392,144 +318,17 @@ export class PeaqSDK {
     }
   }
 
-  /**
-   * Sign typed data for deploying machine smart account
-   */
-  private async ownerSignTypedDataDeployMachineSmartAccount(
-    machineOwner: string,
-    nonce: bigint
-  ): Promise<string> {
-    const domain = {
-      name: "MachineStationFactory",
-      version: "1",
-      chainId: this.config.chainId,
-      verifyingContract: this.config.contractAddress,
+  private async sendTransaction(
+    methodData: string
+  ): Promise<ethers.TransactionResponse> {
+    const tx = {
+      to: this.config.machineStationFactoryContractAddress,
+      data: methodData,
     };
 
-    const types = {
-      DeployMachineSmartAccount: [
-        { name: "machineOwner", type: "address" },
-        { name: "nonce", type: "uint256" },
-      ],
-    };
-
-    const message = {
-      machineOwner: machineOwner,
-      nonce: nonce,
-    };
-
-    return await this.ownerAccount.signTypedData(domain, types, message);
+    return await this.ownerAccount.sendTransaction(tx);
   }
 
-  /**
-   * Sign typed data for machine owner to execute machine
-   */
-  private async machineOwnerSignTypedDataExecuteMachine(
-    machineAddress: string,
-    target: string,
-    data: string,
-    nonce: bigint
-  ): Promise<string> {
-    if (!this.machineOwnerAccount) {
-      throw new Error(
-        "Machine owner private key is required for this operation"
-      );
-    }
-
-    const domain = {
-      name: "MachineSmartAccount",
-      version: "1",
-      chainId: this.config.chainId,
-      verifyingContract: machineAddress,
-    };
-
-    const types = {
-      Execute: [
-        { name: "target", type: "address" },
-        { name: "data", type: "bytes" },
-        { name: "nonce", type: "uint256" },
-      ],
-    };
-
-    const message = {
-      target: target,
-      data: data,
-      nonce: nonce,
-    };
-
-    return await this.machineOwnerAccount.signTypedData(domain, types, message);
-  }
-
-  /**
-   * Sign typed data for owner to execute machine transaction
-   */
-  private async ownerSignTypedDataExecuteMachineTransaction(
-    machineAddress: string,
-    target: string,
-    data: string,
-    nonce: bigint
-  ): Promise<string> {
-    const domain = {
-      name: "MachineStationFactory",
-      version: "1",
-      chainId: this.config.chainId,
-      verifyingContract: this.config.contractAddress,
-    };
-
-    const types = {
-      ExecuteMachineTransaction: [
-        { name: "machineAddress", type: "address" },
-        { name: "target", type: "address" },
-        { name: "data", type: "bytes" },
-        { name: "nonce", type: "uint256" },
-      ],
-    };
-
-    const message = {
-      machineAddress: machineAddress,
-      target: target,
-      data: data,
-      nonce: nonce,
-    };
-
-    return await this.ownerAccount.signTypedData(domain, types, message);
-  }
-
-  /**
-   * Sign typed data for executing a regular transaction
-   */
-  private async ownerSignTypedDataExecuteTransaction(
-    target: string,
-    data: string,
-    nonce: bigint
-  ): Promise<string> {
-    const domain = {
-      name: "MachineStationFactory",
-      version: "1",
-      chainId: this.config.chainId,
-      verifyingContract: this.config.contractAddress,
-    };
-
-    const types = {
-      ExecuteTransaction: [
-        { name: "target", type: "address" },
-        { name: "data", type: "bytes" },
-        { name: "nonce", type: "uint256" },
-      ],
-    };
-
-    const message = {
-      target: target,
-      data: data,
-      nonce: nonce,
-    };
-
-    return await this.ownerAccount.signTypedData(domain, types, message);
-  }
-
-  /**
-   * Generate DID hash
-   */
   private async generateDIDHash(
     machineOwnerAddress: string,
     didAddress: string,
@@ -577,9 +376,8 @@ export class PeaqSDK {
     return did_hash.value;
   }
 
-  /**
-   * Create email signature
-   */
+  // Service endpoints
+
   private async createEmailSignature(data: any): Promise<string> {
     try {
       const response = await axios.post(
@@ -602,9 +400,6 @@ export class PeaqSDK {
     }
   }
 
-  /**
-   * Register item type and tags
-   */
   private async registerItemTypeAndTags(data: any): Promise<any> {
     try {
       const response = await axios.post(
@@ -625,5 +420,125 @@ export class PeaqSDK {
       console.error("Error registering itemType and tags", error);
       throw error;
     }
+  }
+
+  // EIP-712 Typed Data Signatures
+
+  private async ownerSignTypedDataDeployMachineSmartAccount(
+    machineOwner: string,
+    nonce: bigint
+  ): Promise<string> {
+    const domain = {
+      name: "MachineStationFactory",
+      version: "1",
+      chainId: this.config.chainId,
+      verifyingContract: this.config.machineStationFactoryContractAddress,
+    };
+
+    const types = {
+      DeployMachineSmartAccount: [
+        { name: "machineOwner", type: "address" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = {
+      machineOwner: machineOwner,
+      nonce: nonce,
+    };
+
+    return await this.ownerAccount.signTypedData(domain, types, message);
+  }
+
+  private async machineOwnerSignTypedDataExecuteMachine(
+    machineAddress: string,
+    target: string,
+    data: string,
+    nonce: bigint
+  ): Promise<string> {
+    if (!this.machineOwnerAccount) {
+      throw new Error(
+        "Machine owner private key is required for this operation"
+      );
+    }
+
+    const domain = {
+      name: "MachineSmartAccount",
+      version: "1",
+      chainId: this.config.chainId,
+      verifyingContract: machineAddress,
+    };
+
+    const types = {
+      Execute: [
+        { name: "target", type: "address" },
+        { name: "data", type: "bytes" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = {
+      target: target,
+      data: data,
+      nonce: nonce,
+    };
+
+    return await this.machineOwnerAccount.signTypedData(domain, types, message);
+  }
+
+  private async ownerSignTypedDataExecuteMachineTransaction(
+    machineAddress: string,
+    target: string,
+    data: string,
+    nonce: bigint
+  ): Promise<string> {
+    const domain = {
+      name: "MachineStationFactory",
+      version: "1",
+      chainId: this.config.chainId,
+      verifyingContract: this.config.machineStationFactoryContractAddress,
+    };
+
+    const types = {
+      ExecuteMachineTransaction: [
+        { name: "machineAddress", type: "address" },
+        { name: "target", type: "address" },
+        { name: "data", type: "bytes" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = { machineAddress, target, data, nonce };
+
+    return await this.ownerAccount.signTypedData(domain, types, message);
+  }
+
+  private async ownerSignTypedDataExecuteTransaction(
+    target: string,
+    data: string,
+    nonce: bigint
+  ): Promise<string> {
+    const domain = {
+      name: "MachineStationFactory",
+      version: "1",
+      chainId: this.config.chainId,
+      verifyingContract: this.config.machineStationFactoryContractAddress,
+    };
+
+    const types = {
+      ExecuteTransaction: [
+        { name: "target", type: "address" },
+        { name: "data", type: "bytes" },
+        { name: "nonce", type: "uint256" },
+      ],
+    };
+
+    const message = {
+      target: target,
+      data: data,
+      nonce: nonce,
+    };
+
+    return await this.ownerAccount.signTypedData(domain, types, message);
   }
 }
