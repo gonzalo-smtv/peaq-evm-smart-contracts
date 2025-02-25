@@ -16,3 +16,4 @@ docs/
 
 # Ignore built files
 getRealCampaignExamples/**.js
+peaqSDK/**.js

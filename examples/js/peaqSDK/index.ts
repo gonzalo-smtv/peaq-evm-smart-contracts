@@ -38,6 +38,7 @@ export class PeaqSDK {
     if (!this.isValidConfig(config)) {
       throw new Error("Invalid configuration");
     }
+
     this.config = config;
     this.provider = new ethers.JsonRpcProvider(config.rpcUrl);
     this.ownerAccount = new ethers.Wallet(
@@ -159,12 +160,11 @@ export class PeaqSDK {
 
   public identity = {
     addAttribute: async (params: {
-      machineOrUserAddress: string;
       didAddress: string;
       email: string;
       tag: string;
     }): Promise<ethers.TransactionReceipt | null> => {
-      const { machineOrUserAddress, didAddress, email, tag } = params;
+      const { didAddress, email, tag } = params;
       const target = "0x0000000000000000000000000000000000000800";
 
       // Prepare function call data
@@ -189,20 +189,20 @@ export class PeaqSDK {
       );
       const didVal = ethers.hexlify(ethers.toUtf8Bytes(value));
 
-      const didName = `did:peaq:${machineOrUserAddress}#test`;
+      const didName = `did:peaq:${didAddress}#test`;
       const name = ethers.hexlify(ethers.toUtf8Bytes(didName));
       const validityFor = 0;
 
       const calldataParams = this.abiCoder.encode(
         ["address", "bytes", "bytes", "uint32"],
-        [machineOrUserAddress, name, didVal, validityFor]
+        [didAddress, name, didVal, validityFor]
       );
 
       const calldata = calldataParams.replace("0x", createDidFunctionSelector);
 
       // Execute the transaction using the machineStationFactory
       return await this.machineStationFactory.executeTransaction({
-        machineAddress: machineOrUserAddress,
+        machineAddress: didAddress,
         target,
         data: calldata,
       });
@@ -211,24 +211,22 @@ export class PeaqSDK {
 
   public storage = {
     storeData: async (params: {
-      itemType?: string;
+      customTag: string;
       email: string;
       tag: string;
-      tags?: string[];
+      tags: string[];
     }): Promise<ethers.TransactionReceipt | null> => {
-      const { email, tag, tags } = params;
-      const nonce = this.getRandomNonce();
-      const target = "0x0000000000000000000000000000000000000801";
+      const { email, tag, tags, customTag } = params;
 
-      // Generate item type if not provided
-      const itemType = params.itemType || `${tag}-${Date.now()}`;
+      const now = new Date().getTime();
+      const itemType = customTag + "-" + now;
 
       // Register item type and tags
       await this.registerItemTypeAndTags({
         item_type: itemType,
         email,
         tag,
-        tags: tags || [tag],
+        tags: tags,
       });
 
       // Prepare function call data
@@ -249,6 +247,9 @@ export class PeaqSDK {
       const calldata = calldataParams.replace("0x", addItemFunctionSelector);
 
       try {
+        const nonce = this.getRandomNonce();
+        const target = "0x0000000000000000000000000000000000000801";
+
         // Get signature
         const ownerSignature = await this.ownerSignTypedDataExecuteTransaction(
           target,
@@ -296,10 +297,11 @@ export class PeaqSDK {
   }
 
   private handleTransactionError(error: any): void {
-    console.error("Transaction failed. Error:", error);
+    console.error("Transaction failed ");
 
     // Check if the error is a revert error with data
     if (error.data) {
+      console.error("Try to decode error data");
       try {
         // Decode the revert error using the machineStationFactoryContract's ABI
         const iface = new ethers.Interface(
@@ -308,8 +310,8 @@ export class PeaqSDK {
         const decodedError = iface.parseError(error.data);
 
         console.log("Decoded Error:", decodedError);
-      } catch (decodeError) {
-        console.error("Failed to decode error data:", decodeError);
+      } catch (error) {
+        console.error("Failed to decode error data");
       }
     }
   }
@@ -389,14 +391,16 @@ export class PeaqSDK {
         }
       );
 
-      return response.data.signature;
+      return response.data.data.signature;
     } catch (error) {
       console.error("Error creating email signature", error);
       throw error;
     }
   }
 
-  private async registerItemTypeAndTags(data: any): Promise<any> {
+  private async registerItemTypeAndTags(data: any) {
+    console.log("Storing data for item type:", data.item_type);
+
     try {
       const response = await axios.post(
         `${this.config.serviceUrl}/v1/data/store`,
@@ -411,7 +415,7 @@ export class PeaqSDK {
         }
       );
 
-      return response.data;
+      console.log("Data registered:", response.data);
     } catch (error) {
       console.error("Error registering itemType and tags", error);
       throw error;

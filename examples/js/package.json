@@ -34,6 +34,7 @@
   },
   "scripts": {
     "build": "tsc ./getRealCampaignExamples/**.ts",
+    "build:sdk": "tsc ./peaqSDK/**.ts",
     "start:submitDIDTx": "node ./getRealCampaignExamples/PeaqDidGetRealCampaignClass.js",
     "start:submitGetRealStorageTx": "node ./getRealCampaignExamples/PeaqStorageGetRealCampaignClass.js",
     "start:transferMachineStationBalance": "node ./getRealCampaignExamples/TransferMachineStationBalanceClass.js",
