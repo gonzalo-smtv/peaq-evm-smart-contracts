@@ -14,7 +14,7 @@ export interface PeaqSDKConfig {
 
   // Authentication
   ownerPrivateKey: string;
-  machineOwnerPrivateKey?: string;
+  machineOwnerPrivateKey: string;
 
   // Service endpoints and keys
   serviceUrl: string;
@@ -35,13 +35,18 @@ export class PeaqSDK {
   private abiCoder: ethers.AbiCoder;
 
   constructor(config: PeaqSDKConfig) {
-    if (this.checkConfig(config)) {
+    if (!this.isValidConfig(config)) {
       throw new Error("Invalid configuration");
     }
     this.config = config;
     this.provider = new ethers.JsonRpcProvider(config.rpcUrl);
     this.ownerAccount = new ethers.Wallet(
       config.ownerPrivateKey,
+      this.provider
+    );
+
+    this.machineOwnerAccount = new ethers.Wallet(
+      config.machineOwnerPrivateKey,
       this.provider
     );
 
@@ -56,26 +61,22 @@ export class PeaqSDK {
 
   public machineStationFactory = {
     deploySmartAccount: async (): Promise<string> => {
-      const machineOwner = this.machineOwnerAccount?.address;
-
-      if (!machineOwner) {
-        throw new Error("Machine owner address is required");
-      }
-
+      const machineOwner = this.machineOwnerAccount.address;
       const nonce = this.getRandomNonce();
 
       // Sign the deployment transaction
-      const signature = await this.ownerSignTypedDataDeployMachineSmartAccount(
-        machineOwner,
-        nonce
-      );
+      const deploySignature =
+        await this.ownerSignTypedDataDeployMachineSmartAccount(
+          machineOwner,
+          nonce
+        );
 
       try {
         // Encode the method call data
         const methodData =
           this.machineStationFactoryContract.interface.encodeFunctionData(
             "deployMachineSmartAccount",
-            [machineOwner, nonce, signature]
+            [machineOwner, nonce, deploySignature]
           );
 
         const txResponse = await this.sendTransaction(methodData);
@@ -115,23 +116,17 @@ export class PeaqSDK {
       const { machineAddress, target, data } = params;
       const nonce = this.getRandomNonce();
 
-      if (!this.machineOwnerAccount) {
-        throw new Error(
-          "Machine owner private key is required for this operation"
-        );
-      }
-
-      // Get signatures from both owner and machineStationFactory owner
-      const ownerSignature =
-        await this.ownerSignTypedDataExecuteMachineTransaction(
+      // Get signatures from both machineStationFactory owner and owner
+      const machineOwnerSignature =
+        await this.machineOwnerSignTypedDataExecuteMachine(
           machineAddress,
           target,
           data,
           nonce
         );
 
-      const machineOwnerSignature =
-        await this.machineOwnerSignTypedDataExecuteMachine(
+      const ownerSignature =
+        await this.ownerSignTypedDataExecuteMachineTransaction(
           machineAddress,
           target,
           data,
@@ -172,6 +167,13 @@ export class PeaqSDK {
       const { machineOrUserAddress, didAddress, email, tag } = params;
       const target = "0x0000000000000000000000000000000000000800";
 
+      // Prepare function call data
+      const addAttributeFunctionSignature =
+        "addAttribute(address,bytes,bytes,uint32)";
+      const createDidFunctionSelector = ethers
+        .keccak256(ethers.toUtf8Bytes(addAttributeFunctionSignature))
+        .substring(0, 10);
+
       // Create email signature
       const emailSignature = await this.createEmailSignature({
         email,
@@ -180,22 +182,15 @@ export class PeaqSDK {
       });
 
       // Generate DID document hash
-      const didValue = await this.generateDIDHash(
+      const value = await this.generateDIDHash(
         this.machineOwnerAccount.address,
         didAddress,
         emailSignature
       );
-
-      // Prepare function call data
-      const addAttributeFunctionSignature =
-        "addAttribute(address,bytes,bytes,uint32)";
-      const createDidFunctionSelector = ethers
-        .keccak256(ethers.toUtf8Bytes(addAttributeFunctionSignature))
-        .substring(0, 10);
+      const didVal = ethers.hexlify(ethers.toUtf8Bytes(value));
 
       const didName = `did:peaq:${machineOrUserAddress}#test`;
       const name = ethers.hexlify(ethers.toUtf8Bytes(didName));
-      const didVal = ethers.hexlify(ethers.toUtf8Bytes(didValue));
       const validityFor = 0;
 
       const calldataParams = this.abiCoder.encode(
@@ -279,13 +274,14 @@ export class PeaqSDK {
 
   // PRIVATE HELPER METHODS
 
-  private checkConfig(config: PeaqSDKConfig): boolean {
+  private isValidConfig(config: PeaqSDKConfig): boolean {
     // TODO: check correct format of config values
-    return !(
+    return !!(
       config.rpcUrl &&
       config.chainId &&
       config.machineStationFactoryContractAddress &&
       config.ownerPrivateKey &&
+      config.machineOwnerPrivateKey &&
       config.serviceUrl &&
       config.apiKey &&
       config.projectApiKey &&
@@ -442,10 +438,7 @@ export class PeaqSDK {
       ],
     };
 
-    const message = {
-      machineOwner: machineOwner,
-      nonce: nonce,
-    };
+    const message = { machineOwner, nonce };
 
     return await this.ownerAccount.signTypedData(domain, types, message);
   }
@@ -456,12 +449,6 @@ export class PeaqSDK {
     data: string,
     nonce: bigint
   ): Promise<string> {
-    if (!this.machineOwnerAccount) {
-      throw new Error(
-        "Machine owner private key is required for this operation"
-      );
-    }
-
     const domain = {
       name: "MachineSmartAccount",
       version: "1",
@@ -477,11 +464,7 @@ export class PeaqSDK {
       ],
     };
 
-    const message = {
-      target: target,
-      data: data,
-      nonce: nonce,
-    };
+    const message = { target, data, nonce };
 
     return await this.machineOwnerAccount.signTypedData(domain, types, message);
   }
