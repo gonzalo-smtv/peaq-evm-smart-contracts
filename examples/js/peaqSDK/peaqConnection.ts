@@ -30,9 +30,7 @@ const ENVS: { [key: string]: string } = {
   SEED_PHRASE: process.env.SEED_PHRASE,
 };
 
-const createDid = async () => {
-  console.log("Deploy Machine and create DID");
-
+const createDid = async (email, tag, didAddress: string) => {
   const sdk = new PeaqSDK({
     rpcUrl: ENVS.RPC_URL,
     chainId: parseInt(ENVS.CHAIN_ID),
@@ -46,34 +44,16 @@ const createDid = async () => {
     depinSeed: ENVS.SEED_PHRASE,
   });
 
-  // 1. Deploy a machine smart account
-  console.log("Deploying machine smart account...");
-  const machineAddress = await sdk.machineStationFactory.deploySmartAccount();
-
-  console.log(`Machine deployed at: ${machineAddress}`);
-
-  const email = "gonzalo@thinkanddev.com";
-  const tag = "TEST";
-
-  // 2. Add DID attribute
-  console.log("Adding DID attribute to machine...");
   const didReceipt = await sdk.identity.addAttribute({
-    didAddress: machineAddress,
+    didAddress,
     email,
     tag,
   });
 
-  console.log(`DID created. Transaction hash: ${didReceipt?.hash}`);
-
-  return {
-    machineAddress,
-    didTransactionHash: didReceipt?.hash,
-  };
+  return didReceipt?.hash;
 };
 
-const storageData = async () => {
-  console.log("Store Data");
-
+const storageData = async (email, tag, tags) => {
   const sdk = new PeaqSDK({
     rpcUrl: ENVS.RPC_URL,
     chainId: parseInt(ENVS.CHAIN_ID),
@@ -87,11 +67,6 @@ const storageData = async () => {
     depinSeed: ENVS.SEED_PHRASE,
   });
 
-  const email = "test@example.com";
-  const tag = "TEST-SDK-STORAGE";
-  const tags = [tag, "20_TEST-SDK-STORAGE", "30_TEST-SDK-STORAGE"];
-
-  console.log("Storing data...");
   const receipt = await sdk.storage.storeData({
     customTag: tag,
     email,
@@ -99,21 +74,49 @@ const storageData = async () => {
     tags,
   });
 
-  console.log(`Data stored. Transaction hash: ${receipt?.hash}`);
-  console.log("Test completed successfully");
+  return receipt?.hash;
+};
 
-  return {
-    storageTransactionHash: receipt?.hash,
-  };
+const deploySmartAccount = async () => {
+  const sdk = new PeaqSDK({
+    rpcUrl: ENVS.RPC_URL,
+    chainId: parseInt(ENVS.CHAIN_ID),
+    machineStationFactoryContractAddress:
+      ENVS.MACHINE_STATION_FACTORY_CONTRACT_ADDRESS,
+    ownerPrivateKey: ENVS.CONTRACT_OWNER_PRIVATE_KEY,
+    machineOwnerPrivateKey: ENVS.MACHINE_OWNER_PRIVATE_KEY,
+    serviceUrl: ENVS.PEAQ_SERVICE_URL,
+    apiKey: ENVS.API_KEY,
+    projectApiKey: ENVS.PROJECT_API_KEY,
+    depinSeed: ENVS.SEED_PHRASE,
+  });
+
+  const machineAddress = await sdk.machineStationFactory.deploySmartAccount();
+  return machineAddress;
 };
 
 const main = async () => {
-  const results = {
-    machine: await createDid(),
-    storage: await storageData(),
-  };
+  const email = "test@example.com";
+  const tag = "TEST-SDK-STORAGE";
+  const tags = [tag, "20_TEST-SDK-STORAGE", "30_TEST-SDK-STORAGE"];
+
+  console.log("");
+  console.log("Deploying machine smart account...");
+  const machineAddress = await deploySmartAccount();
+  console.log(`Machine smart account deployed at: ${machineAddress}`);
+
+  console.log("");
+  console.log("Adding DID attribute to machine...");
+  const didTransactionHash = await createDid(email, tag, machineAddress);
+  console.log(`DID created. Transaction hash: ${didTransactionHash}`);
+
+  console.log("");
+  console.log("Storing data...");
+  const storageTransactionHash = await storageData(email, tag, tags);
+  console.log(`Data stored. Transaction hash: ${storageTransactionHash}`);
+
+  console.log("");
   console.log("All tasks completed successfully");
-  console.log("Tasks results:", JSON.stringify(results, null, 2));
 };
 
 main();

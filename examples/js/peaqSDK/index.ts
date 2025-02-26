@@ -399,8 +399,6 @@ export class PeaqSDK {
   }
 
   private async registerItemTypeAndTags(data: any) {
-    console.log("Storing data for item type:", data.item_type);
-
     try {
       const response = await axios.post(
         `${this.config.serviceUrl}/v1/data/store`,
@@ -414,8 +412,6 @@ export class PeaqSDK {
           },
         }
       );
-
-      console.log("Data registered:", response.data);
     } catch (error) {
       console.error("Error registering itemType and tags", error);
       throw error;
